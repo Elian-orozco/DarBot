@@ -20,10 +20,6 @@ services:
     container_name: darbot_backend_container
     ports:
       - "8080:8080"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres_db:5432/darbot_db
-      - SPRING_DATASOURCE_USERNAME=darbot_user
-      - SPRING_DATASOURCE_PASSWORD=darbot123
     depends_on:
       - postgres_db
     networks:
