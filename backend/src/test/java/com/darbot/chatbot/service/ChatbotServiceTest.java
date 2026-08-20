@@ -9,8 +9,6 @@ import com.darbot.chatbot.repository.FaqRepository;
 import com.darbot.chatbot.repository.MensajeRepository;
 import com.darbot.chatbot.repository.PreguntaSinRespuestaRepository;
 import com.darbot.common.exception.BadRequestException;
-import com.darbot.contenidos.entity.Documento;
-import com.darbot.contenidos.entity.Evento;
 import com.darbot.contenidos.entity.Noticia;
 import com.darbot.contenidos.repository.DocumentoRepository;
 import com.darbot.contenidos.repository.EventoRepository;
@@ -22,7 +20,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.LocalDate;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
