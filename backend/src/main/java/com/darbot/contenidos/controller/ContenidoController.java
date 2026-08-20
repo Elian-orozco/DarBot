@@ -1,8 +1,8 @@
 package com.darbot.contenidos.controller;
 
-import com.darbot.contenidos.entity.Documento;
-import com.darbot.contenidos.entity.Evento;
-import com.darbot.contenidos.entity.Noticia;
+import com.darbot.contenidos.dto.DocumentoResponse;
+import com.darbot.contenidos.dto.EventoResponse;
+import com.darbot.contenidos.dto.NoticiaResponse;
 import com.darbot.contenidos.service.ContenidoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,17 +20,17 @@ public class ContenidoController {
     private final ContenidoService contenidoService;
 
     @GetMapping("/noticias")
-    public ResponseEntity<List<Noticia>> listarNoticias() {
-        return ResponseEntity.ok(contenidoService.obtenerNoticiasPublicadas());
+    public ResponseEntity<List<NoticiaResponse>> listarNoticias() {
+        return ResponseEntity.ok(contenidoService.obtenerNoticiasPublicadas().stream().map(NoticiaResponse::from).toList());
     }
 
     @GetMapping("/eventos")
-    public ResponseEntity<List<Evento>> listarEventos() {
-        return ResponseEntity.ok(contenidoService.obtenerProximosEventos());
+    public ResponseEntity<List<EventoResponse>> listarEventos() {
+        return ResponseEntity.ok(contenidoService.obtenerProximosEventos().stream().map(EventoResponse::from).toList());
     }
 
     @GetMapping("/documentos")
-    public ResponseEntity<List<Documento>> listarDocumentos() {
-        return ResponseEntity.ok(contenidoService.obtenerDocumentosActivos());
+    public ResponseEntity<List<DocumentoResponse>> listarDocumentos() {
+        return ResponseEntity.ok(contenidoService.obtenerDocumentosActivos().stream().map(DocumentoResponse::from).toList());
     }
 }

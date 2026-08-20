@@ -8,6 +8,7 @@ import com.darbot.chatbot.repository.ConversacionRepository;
 import com.darbot.chatbot.repository.FaqRepository;
 import com.darbot.chatbot.repository.MensajeRepository;
 import com.darbot.chatbot.repository.PreguntaSinRespuestaRepository;
+import com.darbot.common.exception.BadRequestException;
 import com.darbot.contenidos.entity.Documento;
 import com.darbot.contenidos.entity.Evento;
 import com.darbot.contenidos.entity.Noticia;
@@ -27,7 +28,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,15 +62,15 @@ class ChatbotServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(mensajeRepository.save(any(Mensaje.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(conversacionRepository.save(any(Conversacion.class))).thenAnswer(invocation -> {
+        lenient().when(mensajeRepository.save(any(Mensaje.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(conversacionRepository.save(any(Conversacion.class))).thenAnswer(invocation -> {
             Conversacion conversacion = invocation.getArgument(0);
             if (conversacion.getId() == null) {
                 conversacion.setId(1L);
             }
             return conversacion;
         });
-        when(conversacionRepository.findBySessionId("s-123")).thenReturn(Optional.empty());
+        lenient().when(conversacionRepository.findBySessionId("s-123")).thenReturn(Optional.empty());
     }
 
     @Test
@@ -117,5 +120,12 @@ class ChatbotServiceTest {
         String respuesta = chatbotService.procesarMensaje("s-123", "¿Dónde está el laboratorio de química?");
 
         assertThat(respuesta).contains("aún no tengo una respuesta");
+    }
+
+    @Test
+    void debeLanzarBadRequestCuandoElMensajeEsVacio() {
+        assertThatThrownBy(() -> chatbotService.procesarMensaje("s-123", "   "))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("El texto del usuario no puede estar vacío");
     }
 }

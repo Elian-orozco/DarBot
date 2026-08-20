@@ -2,6 +2,8 @@ package com.darbot.chatbot.service;
 
 import com.darbot.chatbot.entity.*;
 import com.darbot.chatbot.repository.*;
+import com.darbot.common.exception.BadRequestException;
+import com.darbot.common.exception.ChatbotException;
 import com.darbot.contenidos.entity.Documento;
 import com.darbot.contenidos.entity.Evento;
 import com.darbot.contenidos.entity.Noticia;
@@ -32,58 +34,67 @@ public class ChatbotService {
     private final DocumentoRepository documentoRepository;
 
     public String procesarMensaje(String sessionId, String textoUsuario) {
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new BadRequestException("sessionId es obligatorio");
+        }
         if (textoUsuario == null || textoUsuario.isBlank()) {
-            return "Escribe tu consulta para que pueda ayudarte.";
+            throw new BadRequestException("El texto del usuario no puede estar vacío");
         }
 
-        Conversacion conversacion = conversacionRepository.findBySessionId(sessionId)
-                .orElseGet(() -> {
-                    Conversacion nuevaConv = new Conversacion();
-                    nuevaConv.setSessionId(sessionId);
-                    return conversacionRepository.save(nuevaConv);
-                });
+        try {
+            Conversacion conversacion = conversacionRepository.findBySessionId(sessionId)
+                    .orElseGet(() -> {
+                        Conversacion nuevaConv = new Conversacion();
+                        nuevaConv.setSessionId(sessionId);
+                        return conversacionRepository.save(nuevaConv);
+                    });
 
-        Mensaje mensajeUser = new Mensaje();
-        mensajeUser.setConversacion(conversacion);
-        mensajeUser.setTipo("USER");
-        mensajeUser.setContenido(textoUsuario);
-        mensajeRepository.save(mensajeUser);
+            Mensaje mensajeUser = new Mensaje();
+            mensajeUser.setConversacion(conversacion);
+            mensajeUser.setTipo("USER");
+            mensajeUser.setContenido(textoUsuario);
+            mensajeRepository.save(mensajeUser);
 
-        String textoNormalizado = normalizarTexto(textoUsuario);
-        String intencionDetectada = detectarIntencion(textoNormalizado);
-        String respuestaBot;
+            String textoNormalizado = normalizarTexto(textoUsuario);
+            String intencionDetectada = detectarIntencion(textoNormalizado);
+            String respuestaBot;
 
-        Faq faqEncontrada = buscarFaqMasRelacionada(textoNormalizado);
-        if (faqEncontrada != null) {
-            respuestaBot = faqEncontrada.getRespuesta();
-            intencionDetectada = "CONSULTAR_FAQ";
-        } else if ("CONSULTAR_EVENTOS".equals(intencionDetectada)) {
-            respuestaBot = responderEventos();
-        } else if ("CONSULTAR_NOTICIAS".equals(intencionDetectada)) {
-            respuestaBot = responderNoticias();
-        } else if ("CONSULTAR_DOCUMENTOS".equals(intencionDetectada)) {
-            respuestaBot = responderDocumentos();
-        } else if ("CONSULTAR_CONTACTO".equals(intencionDetectada)) {
-            respuestaBot = "Puedes comunicarte con la institución por correo institucional o a través de coordinación. Si lo deseas, también puedes consultar la sección de contacto de la web.";
-        } else if ("CONSULTAR_HORARIOS".equals(intencionDetectada)) {
-            respuestaBot = "Los horarios de atención de la institución son los publicados en la web institucional. Si quieres, también puedo ayudarte con información de sedes o servicios.";
-        } else {
-            PreguntaSinRespuesta psr = new PreguntaSinRespuesta();
-            psr.setPregunta(textoUsuario);
-            psr.setIntentoIntencion(intencionDetectada);
-            sinRespuestaRepository.save(psr);
+            Faq faqEncontrada = buscarFaqMasRelacionada(textoNormalizado);
+            if (faqEncontrada != null) {
+                respuestaBot = faqEncontrada.getRespuesta();
+                intencionDetectada = "CONSULTAR_FAQ";
+            } else if ("CONSULTAR_EVENTOS".equals(intencionDetectada)) {
+                respuestaBot = responderEventos();
+            } else if ("CONSULTAR_NOTICIAS".equals(intencionDetectada)) {
+                respuestaBot = responderNoticias();
+            } else if ("CONSULTAR_DOCUMENTOS".equals(intencionDetectada)) {
+                respuestaBot = responderDocumentos();
+            } else if ("CONSULTAR_CONTACTO".equals(intencionDetectada)) {
+                respuestaBot = "Puedes comunicarte con la institución por correo institucional o a través de coordinación. Si lo deseas, también puedes consultar la sección de contacto de la web.";
+            } else if ("CONSULTAR_HORARIOS".equals(intencionDetectada)) {
+                respuestaBot = "Los horarios de atención de la institución son los publicados en la web institucional. Si quieres, también puedo ayudarte con información de sedes o servicios.";
+            } else {
+                PreguntaSinRespuesta psr = new PreguntaSinRespuesta();
+                psr.setPregunta(textoUsuario);
+                psr.setIntentoIntencion(intencionDetectada);
+                sinRespuestaRepository.save(psr);
 
-            respuestaBot = "Lo siento, aún no tengo una respuesta para eso. He registrado tu consulta para que los administradores puedan mejorar mi base de conocimiento.";
+                respuestaBot = "Lo siento, aún no tengo una respuesta para eso. He registrado tu consulta para que los administradores puedan mejorar mi base de conocimiento.";
+            }
+
+            Mensaje mensajeBot = new Mensaje();
+            mensajeBot.setConversacion(conversacion);
+            mensajeBot.setTipo("BOT");
+            mensajeBot.setContenido(respuestaBot);
+            mensajeBot.setIntencionDetectada(intencionDetectada);
+            mensajeRepository.save(mensajeBot);
+
+            return respuestaBot;
+        } catch (BadRequestException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ChatbotException("No se pudo procesar el mensaje del chatbot", ex);
         }
-
-        Mensaje mensajeBot = new Mensaje();
-        mensajeBot.setConversacion(conversacion);
-        mensajeBot.setTipo("BOT");
-        mensajeBot.setContenido(respuestaBot);
-        mensajeBot.setIntencionDetectada(intencionDetectada);
-        mensajeRepository.save(mensajeBot);
-
-        return respuestaBot;
     }
 
     private String normalizarTexto(String texto) {

@@ -2,6 +2,8 @@ package com.darbot.institucional.service;
 
 import com.darbot.institucional.entity.Area;
 import com.darbot.institucional.entity.Contacto;
+import com.darbot.institucional.dto.ContactoRequest;
+import com.darbot.common.exception.ResourceNotFoundException;
 import com.darbot.institucional.repository.AreaRepository;
 import com.darbot.institucional.repository.ContactoRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,20 @@ public class AreaContactoService {
     }
 
     public Contacto guardarContacto(Contacto contacto) {
+        return contactoRepository.save(contacto);
+    }
+
+    public Contacto crearContacto(ContactoRequest request) {
+        Area area = areaRepository.findById(request.areaId())
+                .orElseThrow(() -> new ResourceNotFoundException("No existe el área con id " + request.areaId()));
+        Contacto contacto = new Contacto();
+        contacto.setArea(area);
+        contacto.setTipo(request.tipo());
+        contacto.setValor(request.valor());
+        contacto.setDescripcion(request.descripcion());
+        if (request.activo() != null) {
+            contacto.setActivo(request.activo());
+        }
         return contactoRepository.save(contacto);
     }
 

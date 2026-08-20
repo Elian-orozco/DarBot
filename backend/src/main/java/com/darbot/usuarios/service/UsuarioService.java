@@ -4,6 +4,7 @@ import com.darbot.usuarios.entity.Rol;
 import com.darbot.usuarios.entity.Usuario;
 import com.darbot.usuarios.repository.RolRepository;
 import com.darbot.usuarios.repository.UsuarioRepository;
+import com.darbot.common.exception.BadRequestException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,7 +29,7 @@ public class UsuarioService {
     public Usuario registrarUsuario(Usuario usuario, String nombreRol) {
         // 1. Verificar si el correo ya está registrado
         if (usuarioRepository.findByCorreo(usuario.getCorreo()).isPresent()) {
-            throw new RuntimeException("El correo ya está registrado en el sistema");
+            throw new BadRequestException("El correo ya está registrado en el sistema");
         }
 
         // 2. Encriptar la contraseña
