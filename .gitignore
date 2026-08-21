@@ -1,0 +1,7 @@
+## Ignored runtime and build artifacts
+/backend/log.txt
+/backend/darbot.pid
+/backend/target/
+/.idea/
+*.iml
+*.log
