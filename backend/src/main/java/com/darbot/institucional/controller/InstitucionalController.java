@@ -26,7 +26,8 @@ public class InstitucionalController {
     public ResponseEntity<InformacionInstitucionalResponse> getInformacion() {
         var info = infoService.obtenerInformacion();
         if (info == null) {
-            return ResponseEntity.notFound().build();
+            // Opción B: Devolver 204 No Content (más RESTful)
+            return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(InformacionInstitucionalResponse.from(info));
     }
