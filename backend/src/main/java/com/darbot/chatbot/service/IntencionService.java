@@ -6,6 +6,7 @@ import com.darbot.chatbot.entity.PalabraClaveIntencion;
 import com.darbot.chatbot.repository.FraseEspecificaRepository;
 import com.darbot.chatbot.repository.IntencionRepository;
 import com.darbot.chatbot.repository.PalabraClaveIntencionRepository;
+import com.darbot.chatbot.util.LenguajeUtil;
 import com.darbot.chatbot.util.NormalizadorTexto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class IntencionService {
     private final PalabraClaveIntencionRepository palabraClaveRepository;
     private final FraseEspecificaRepository fraseEspecificaRepository;
     private final NormalizadorTexto normalizador;
+    private final LenguajeUtil lenguajeUtil;
 
     private static final double UMBRAL_COINCIDENCIA = 0.10;
 
@@ -34,7 +36,9 @@ public class IntencionService {
     }
 
     public Map<Intencion, Double> calcularPuntuaciones(String texto) {
-        String textoNormalizado = normalizador.normalizar(texto);
+        String textoNormalizado = lenguajeUtil.normalizar(texto);
+        log.debug("Texto normalizado: '{}' -> '{}'", texto, textoNormalizado);
+        
         List<Intencion> intenciones = obtenerTodasActivas();
         
         Map<Intencion, Double> puntuaciones = new HashMap<>();
@@ -51,23 +55,21 @@ public class IntencionService {
     }
 
     public Optional<Intencion> detectarIntencion(String texto) {
-        String textoNormalizado = normalizador.normalizar(texto);
+        String textoNormalizado = lenguajeUtil.normalizar(texto);
+        log.info("Texto normalizado: '{}' -> '{}'", texto, textoNormalizado);
         
-        // 1. Verificar frases específicas desde la BD (prioridad máxima)
         Optional<Intencion> intencionPorFrase = verificarFrasesEspecificas(textoNormalizado);
         if (intencionPorFrase.isPresent()) {
             log.info("Intención detectada por frase específica: {}", intencionPorFrase.get().getNombre());
             return intencionPorFrase;
         }
         
-        // 2. Si no hay frase, usar el sistema de palabras clave
         Map<Intencion, Double> puntuaciones = calcularPuntuaciones(textoNormalizado);
         
         if (puntuaciones.isEmpty()) {
             return Optional.empty();
         }
 
-        // Ordenar por puntuación y tomar la mejor
         Optional<Map.Entry<Intencion, Double>> mejor = puntuaciones.entrySet().stream()
             .max(Map.Entry.comparingByValue());
         
@@ -83,15 +85,12 @@ public class IntencionService {
     }
 
     private Optional<Intencion> verificarFrasesEspecificas(String texto) {
-        // Obtener todas las frases específicas activas desde la BD
         List<FraseEspecifica> frases = fraseEspecificaRepository.findByActivaTrue();
         
         if (frases.isEmpty()) {
-            // Si no hay frases en BD, usar fallback de comida
             return verificarPalabrasComida(texto);
         }
         
-        // Ordenar por peso (mayor peso primero) y luego por longitud (frases más largas primero)
         frases.sort((a, b) -> {
             int pesoCompare = b.getPeso().compareTo(a.getPeso());
             if (pesoCompare != 0) return pesoCompare;
@@ -107,12 +106,10 @@ public class IntencionService {
             }
         }
         
-        // Si no hay coincidencia de frases, verificar palabras de comida
         return verificarPalabrasComida(texto);
     }
 
     private Optional<Intencion> verificarPalabrasComida(String texto) {
-        // Verificar palabras clave de comida (fallback)
         String[] palabrasComida = {"comer", "comida", "almorzar", "cenar", "desayunar"};
         for (String palabra : palabrasComida) {
             if (texto.contains(palabra)) {
@@ -131,18 +128,19 @@ public class IntencionService {
         int totalPeso = 0;
         int coincidenciasExactas = 0;
 
+        Set<String> palabrasBase = lenguajeUtil.getPalabrasBase(texto);
+        String textoExpandido = String.join(" ", palabrasBase);
+
         for (PalabraClaveIntencion pc : intencion.getPalabrasClave()) {
             String palabra = pc.getPalabra().toLowerCase();
             int peso = pc.getPeso() != null ? pc.getPeso() : 1;
             totalPeso += peso;
 
-            // Coincidencia exacta de palabra completa
-            if (texto.contains(palabra)) {
+            if (textoExpandido.contains(palabra) || texto.contains(palabra)) {
                 puntuacionTotal += peso * 2.0;
                 coincidenciasExactas++;
             }
             
-            // Coincidencia parcial (palabra dentro de otra palabra)
             for (String token : texto.split("\\s+")) {
                 if (token.length() > 2 && (token.contains(palabra) || palabra.contains(token))) {
                     puntuacionTotal += peso * 0.5;
@@ -151,20 +149,18 @@ public class IntencionService {
             }
         }
 
-        // Bonus por tener múltiples coincidencias exactas
         if (coincidenciasExactas >= 2) {
             puntuacionTotal += 0.3;
         }
 
-        // Normalizar puntuación
         if (totalPeso == 0) return 0.0;
         
         double resultado = Math.min(puntuacionTotal / totalPeso, 1.0);
         
-        // Si hay una coincidencia exacta de una palabra clave importante (peso >= 4)
         for (PalabraClaveIntencion pc : intencion.getPalabrasClave()) {
             int peso = pc.getPeso() != null ? pc.getPeso() : 1;
-            if (peso >= 4 && texto.contains(pc.getPalabra().toLowerCase())) {
+            if (peso >= 4 && (texto.contains(pc.getPalabra().toLowerCase()) || 
+                              textoExpandido.contains(pc.getPalabra().toLowerCase()))) {
                 resultado = Math.max(resultado, 0.6);
                 break;
             }

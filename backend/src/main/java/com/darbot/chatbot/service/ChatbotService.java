@@ -1,11 +1,11 @@
 package com.darbot.chatbot.service;
-import com.darbot.chatbot.dto.ChatbotRespuesta;
-import lombok.extern.slf4j.Slf4j;
 
+import com.darbot.chatbot.dto.ChatbotRespuesta;
 import com.darbot.chatbot.entity.*;
 import com.darbot.chatbot.repository.*;
-import com.darbot.chatbot.util.NormalizadorTexto;
 import com.darbot.chatbot.util.ExtractorDatos;
+import com.darbot.chatbot.util.LenguajeUtil;
+import com.darbot.chatbot.util.NormalizadorTexto;
 import com.darbot.common.exception.BadRequestException;
 import com.darbot.common.exception.ChatbotException;
 import com.darbot.contenidos.entity.Documento;
@@ -19,6 +19,7 @@ import com.darbot.institucional.entity.Sede;
 import com.darbot.institucional.repository.ContactoRepository;
 import com.darbot.institucional.repository.SedeRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -40,12 +41,14 @@ public class ChatbotService {
     private final DocumentoRepository documentoRepository;
     private final SedeRepository sedeRepository;
     private final ContactoRepository contactoRepository;
+    private final ContextoConversacionRepository contextoRepository;
 
     private final IntencionService intencionService;
     private final ContextoService contextoService;
     private final PuntuacionService puntuacionService;
     private final NormalizadorTexto normalizador;
     private final ExtractorDatos extractorDatos;
+    private final LenguajeUtil lenguajeUtil;
 
     private static final int MAX_RESULTADOS = 5;
 
@@ -56,8 +59,21 @@ public class ChatbotService {
             Conversacion conversacion = obtenerOCrearConversacion(sessionId);
             guardarMensaje(conversacion, "USER", textoUsuario);
 
-            String textoNormalizado = normalizador.normalizar(textoUsuario);
-            
+            // Normalización avanzada con LenguajeUtil
+            String textoNormalizado = lenguajeUtil.normalizar(textoUsuario);
+            log.info("Texto normalizado: '{}'", textoNormalizado);
+
+            // Verificar si es pregunta compuesta
+            if (lenguajeUtil.esPreguntaCompuesta(textoNormalizado)) {
+                String respuesta = responderPreguntaCompuesta(textoNormalizado);
+                guardarMensajeConIntencion(conversacion, "BOT", respuesta, "COMPUESTA");
+                return construirRespuestaEstructurada(respuesta, "COMPUESTA", new HashMap<>());
+            }
+
+            // Verificar negación
+            boolean tieneNegacion = lenguajeUtil.contieneNegacion(textoNormalizado);
+            String textoSinNegacion = tieneNegacion ? lenguajeUtil.eliminarNegaciones(textoNormalizado) : textoNormalizado;
+
             // 1. Verificar si es pregunta de contexto
             boolean esContexto = contextoService.esPreguntaDeContexto(textoNormalizado);
             Optional<ContextoConversacion> contextoOpt = contextoService.obtenerContexto(conversacion);
@@ -67,37 +83,46 @@ public class ChatbotService {
             Map<String, Object> entidadesExtraidas = new HashMap<>();
 
             if (esContexto && contextoOpt.isPresent()) {
-                // Usar contexto para responder
                 respuesta = responderConContexto(textoNormalizado, contextoOpt.get(), conversacion);
                 intencionDetectada = "CONTEXTO_" + contextoOpt.get().getUltimaIntencion();
             } else {
-    // 2. Primero detectar intención
-    Optional<Intencion> intencionOpt = intencionService.detectarIntencion(textoNormalizado);
-    
-    if (intencionOpt.isPresent()) {
-        Intencion intencion = intencionOpt.get();
-        intencionDetectada = intencion.getNombre();
-        
-        // Extraer entidades de la pregunta
-        entidadesExtraidas = extractorDatos.extraerEntidades(textoNormalizado);
-        
-        respuesta = procesarPorIntencion(intencion, textoNormalizado, entidadesExtraidas);
-    } else {
-        // 3. Si no hay intención, buscar FAQ
-        Optional<Faq> faqOpt = puntuacionService.obtenerMejorFaq(textoNormalizado);
-        if (faqOpt.isPresent()) {
-            respuesta = faqOpt.get().getRespuesta();
-            intencionDetectada = "CONSULTAR_FAQ";
-        } else {
-            // 4. Sin intención ni FAQ
-            respuesta = manejarPreguntaSinRespuesta(textoUsuario, "DESCONOCIDA");
-            intencionDetectada = "DESCONOCIDA";
-        }
-    }
-}
+                // 2. Detectar intención
+                Optional<Intencion> intencionOpt = intencionService.detectarIntencion(tieneNegacion ? textoSinNegacion : textoNormalizado);
+                
+                if (intencionOpt.isPresent()) {
+                    Intencion intencion = intencionOpt.get();
+                    intencionDetectada = intencion.getNombre();
+                    
+                    // Extraer entidades de la pregunta
+                    entidadesExtraidas = extractorDatos.extraerEntidades(textoNormalizado);
+                    
+                    respuesta = procesarPorIntencion(intencion, textoNormalizado, entidadesExtraidas);
+                    
+                    // Si tiene negación, filtrar resultados
+                    if (tieneNegacion) {
+                        if (intencionDetectada.equals("CONSULTAR_EVENTOS")) {
+                            respuesta = "No encontré eventos que coincidan con tu búsqueda (excluyendo eventos).";
+                        } else if (intencionDetectada.equals("CONSULTAR_NOTICIAS")) {
+                            respuesta = "No hay noticias disponibles (excluyendo noticias).";
+                        } else {
+                            respuesta = "❌ " + respuesta;
+                        }
+                    }
+                } else {
+                    // 3. Si no hay intención, buscar FAQ
+                    Optional<Faq> faqOpt = puntuacionService.obtenerMejorFaq(textoNormalizado);
+                    if (faqOpt.isPresent()) {
+                        respuesta = faqOpt.get().getRespuesta();
+                        intencionDetectada = "CONSULTAR_FAQ";
+                    } else {
+                        // 4. Sin intención ni FAQ
+                        respuesta = manejarPreguntaSinRespuesta(textoUsuario, "DESCONOCIDA");
+                        intencionDetectada = "DESCONOCIDA";
+                    }
+                }
+            }
 
             // 5. Guardar respuesta
-            guardarMensaje(conversacion, "BOT", respuesta);
             guardarMensajeConIntencion(conversacion, "BOT", respuesta, intencionDetectada);
 
             // 6. Actualizar contexto
@@ -117,8 +142,56 @@ public class ChatbotService {
         } catch (BadRequestException ex) {
             throw ex;
         } catch (Exception ex) {
+            log.error("Error procesando mensaje", ex);
             throw new ChatbotException("No se pudo procesar el mensaje del chatbot", ex);
         }
+    }
+
+    private String responderPreguntaCompuesta(String texto) {
+        List<String> partes = lenguajeUtil.dividirPreguntaCompuesta(texto);
+        StringBuilder respuesta = new StringBuilder("📌 **Respuesta a tu consulta:**\n\n");
+        
+        for (String parte : partes) {
+            String parteNormalizada = lenguajeUtil.normalizar(parte);
+            Optional<Intencion> intencionOpt = intencionService.detectarIntencion(parteNormalizada);
+            if (intencionOpt.isPresent()) {
+                Map<String, Object> entidades = extractorDatos.extraerEntidades(parteNormalizada);
+                String respuestaParcial = procesarPorIntencion(intencionOpt.get(), parteNormalizada, entidades);
+                respuesta.append("• ").append(respuestaParcial).append("\n\n");
+            } else {
+                respuesta.append("• ❌ No pude entender: \"").append(parte).append("\"\n\n");
+            }
+        }
+        
+        return respuesta.toString();
+    }
+
+    private String generarRespuestaConOpciones(String respuesta, String intencion) {
+        List<String> opciones = new ArrayList<>();
+        
+        if (intencion.equals("CONSULTAR_EVENTOS")) {
+            opciones.addAll(Arrays.asList("Ver todos los eventos", "Ver eventos por mes", "Ver eventos por sede"));
+        } else if (intencion.equals("CONSULTAR_NOTICIAS")) {
+            opciones.addAll(Arrays.asList("Ver todas las noticias", "Ver noticias por categoría"));
+        } else if (intencion.equals("CONSULTAR_DOCUMENTOS")) {
+            opciones.addAll(Arrays.asList("Ver todos los documentos", "Buscar documentos"));
+        } else if (intencion.equals("CONSULTAR_SEDES")) {
+            opciones.addAll(Arrays.asList("Ver todas las sedes", "Ver sedes por ubicación"));
+        } else if (intencion.equals("CONSULTAR_CONTACTOS")) {
+            opciones.addAll(Arrays.asList("Ver todos los contactos", "Contactar por área"));
+        }
+        
+        if (!opciones.isEmpty()) {
+            StringBuilder sb = new StringBuilder(respuesta);
+            sb.append("\n\n💡 **Opciones:**");
+            for (int i = 0; i < opciones.size(); i++) {
+                sb.append("\n").append(i + 1).append(". ").append(opciones.get(i));
+            }
+            sb.append("\n\n_Responde con el número de la opción que te interesa._");
+            return sb.toString();
+        }
+        
+        return respuesta;
     }
 
     private ChatbotRespuesta construirRespuestaEstructurada(String respuesta, String intencion, Map<String, Object> entidades) {
@@ -128,12 +201,16 @@ public class ChatbotService {
         respuestaDTO.setEntidades(entidades);
         
         // Determinar si mostrar opciones adicionales
+        List<String> opciones = new ArrayList<>();
         if (intencion.equals("CONSULTAR_EVENTOS")) {
-            respuestaDTO.setOpciones(Arrays.asList("Ver todos los eventos", "Ver eventos por mes"));
+            opciones.addAll(Arrays.asList("Ver todos los eventos", "Ver eventos por mes"));
         } else if (intencion.equals("CONSULTAR_NOTICIAS")) {
-            respuestaDTO.setOpciones(Arrays.asList("Ver todas las noticias", "Ver noticias por categoría"));
+            opciones.addAll(Arrays.asList("Ver todas las noticias", "Ver noticias por categoría"));
         } else if (intencion.equals("CONSULTAR_DOCUMENTOS")) {
-            respuestaDTO.setOpciones(Arrays.asList("Ver todos los documentos", "Buscar documentos"));
+            opciones.addAll(Arrays.asList("Ver todos los documentos", "Buscar documentos"));
+        }
+        if (!opciones.isEmpty()) {
+            respuestaDTO.setOpciones(opciones);
         }
         
         return respuestaDTO;
@@ -146,11 +223,9 @@ public class ChatbotService {
             return "No entiendo la referencia a lo anterior. ¿Podrías reformular tu pregunta?";
         }
 
-        // Buscar la intención por nombre
         Optional<Intencion> intencionOpt = intencionService.obtenerPorNombre(ultimaIntencion);
         
         if (intencionOpt.isPresent()) {
-            // Extraer entidades de la pregunta de contexto
             Map<String, Object> entidades = extractorDatos.extraerEntidades(texto);
             return procesarPorIntencion(intencionOpt.get(), texto, entidades);
         }
@@ -159,31 +234,26 @@ public class ChatbotService {
     }
 
     private String procesarPorIntencion(Intencion intencion, String texto, Map<String, Object> entidades) {
-    String nombre = intencion.getNombre();
-    log.info("Procesando intención: {}", nombre);
-    
-    switch (nombre) {
-        case "CONSULTAR_EVENTOS":
-            return responderEventos(texto, entidades);
-        case "CONSULTAR_NOTICIAS":
-            return responderNoticias(texto, entidades);
-        case "CONSULTAR_DOCUMENTOS":
-            return responderDocumentos(texto, entidades);
-        case "CONSULTAR_SEDES":
-            return responderSedes(texto, entidades);
-        case "CONSULTAR_CONTACTOS":
-            return responderContactos(texto, entidades);
-        case "CONSULTAR_HORARIOS":
-            return responderHorarios(texto, entidades);
-        case "CONSULTAR_SERVICIOS":
-            return responderServicios(texto, entidades);
-        case "CONSULTAR_INSTITUCION":
-            return responderInstitucion(texto, entidades);
-        default:
-            log.warn("Intención no reconocida: {}", nombre);
-            return manejarPreguntaSinRespuesta(texto, nombre);
+        String nombre = intencion.getNombre();
+        log.info("Procesando intención: {}", nombre);
+        
+        String respuesta = switch (nombre) {
+            case "CONSULTAR_EVENTOS" -> responderEventos(texto, entidades);
+            case "CONSULTAR_NOTICIAS" -> responderNoticias(texto, entidades);
+            case "CONSULTAR_DOCUMENTOS" -> responderDocumentos(texto, entidades);
+            case "CONSULTAR_SEDES" -> responderSedes(texto, entidades);
+            case "CONSULTAR_CONTACTOS" -> responderContactos(texto, entidades);
+            case "CONSULTAR_HORARIOS" -> responderHorarios(texto, entidades);
+            case "CONSULTAR_SERVICIOS" -> responderServicios(texto, entidades);
+            case "CONSULTAR_INSTITUCION" -> responderInstitucion(texto, entidades);
+            default -> {
+                log.warn("Intención no reconocida: {}", nombre);
+                yield manejarPreguntaSinRespuesta(texto, nombre);
+            }
+        };
+        
+        return generarRespuestaConOpciones(respuesta, nombre);
     }
-}
 
     private String responderEventos(String texto, Map<String, Object> entidades) {
         LocalDate fechaInicio = LocalDate.now();
@@ -215,7 +285,6 @@ public class ChatbotService {
             return "No encontré eventos que coincidan con tu búsqueda.";
         }
 
-        // Limitar resultados
         eventos = eventos.stream().limit(MAX_RESULTADOS).collect(Collectors.toList());
 
         StringBuilder respuesta = new StringBuilder();
@@ -278,7 +347,6 @@ public class ChatbotService {
             return "No hay documentos activos disponibles en este momento.";
         }
 
-        // Filtrar por tipo de documento si se detectó
         if (entidades.containsKey("tipo_documento")) {
             String tipo = (String) entidades.get("tipo_documento");
             documentos = documentos.stream()
@@ -344,7 +412,6 @@ public class ChatbotService {
             return "No hay contactos registrados en el sistema.";
         }
 
-        // Filtrar por tipo de contacto si se detectó
         if (entidades.containsKey("tipo_contacto")) {
             String tipo = (String) entidades.get("tipo_contacto");
             contactos = contactos.stream()
@@ -382,7 +449,6 @@ public class ChatbotService {
     }
 
     private String responderHorarios(String texto, Map<String, Object> entidades) {
-        // Buscar en FAQ específicas de horarios
         List<Faq> faqs = faqRepository.findByActivaTrue();
         List<Faq> horariosFaq = faqs.stream()
             .filter(f -> f.getCategoria() != null && 
