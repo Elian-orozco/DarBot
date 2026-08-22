@@ -1,8 +1,8 @@
 package com.darbot.chatbot.controller;
 
-import com.darbot.chatbot.service.ChatbotService;
 import com.darbot.chatbot.dto.ChatbotPreguntaRequest;
-import com.darbot.chatbot.dto.ChatbotRespuestaResponse;
+import com.darbot.chatbot.dto.ChatbotRespuesta;
+import com.darbot.chatbot.service.ChatbotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +16,8 @@ public class ChatbotController {
     private final ChatbotService chatbotService;
 
     @PostMapping("/pregunta")
-    public ResponseEntity<ChatbotRespuestaResponse> hacerPregunta(@Valid @RequestBody ChatbotPreguntaRequest request) {
-        String respuesta = chatbotService.procesarMensaje(request.sessionId(), request.mensaje());
-
-        return ResponseEntity.ok(new ChatbotRespuestaResponse(respuesta));
+    public ResponseEntity<ChatbotRespuesta> hacerPregunta(@Valid @RequestBody ChatbotPreguntaRequest request) {
+        ChatbotRespuesta respuesta = chatbotService.procesarMensaje(request.sessionId(), request.mensaje());
+        return ResponseEntity.ok(respuesta);
     }
 }

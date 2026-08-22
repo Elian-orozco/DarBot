@@ -3,35 +3,28 @@ package com.darbot.chatbot.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @Entity
-@Table(name = "intenciones")
-public class Intencion {
+@Table(name = "frases_especificas")
+public class FraseEspecifica {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
-    private String nombre; // CONSULTAR_EVENTO, CONSULTAR_NOTICIA, etc.
+    @Column(nullable = false, unique = true, columnDefinition = "TEXT")
+    private String frase;
 
-    @Column(length = 255)
-    private String descripcion;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "intencion_id", nullable = false)
+    private Intencion intencion;
 
     @Column(nullable = false)
     private Boolean activa = true;
 
-    @Column(name = "prioridad")
-    private Integer prioridad = 0; // Mayor prioridad = se evalúa primero
-
-    @Column(name = "respuesta_por_defecto", columnDefinition = "TEXT")
-    private String respuestaPorDefecto; // Respuesta si no hay datos
-
-    @OneToMany(mappedBy = "intencion", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    private List<PalabraClaveIntencion> palabrasClave = new ArrayList<>();
+    @Column(nullable = false)
+    private Integer peso = 10;
 
     @Column(name = "fecha_creacion", updatable = false)
     private LocalDateTime fechaCreacion;

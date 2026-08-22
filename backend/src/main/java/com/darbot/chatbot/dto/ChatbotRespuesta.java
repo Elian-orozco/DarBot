@@ -1,0 +1,14 @@
+package com.darbot.chatbot.dto;
+
+import lombok.Data;
+
+import java.util.List;
+import java.util.Map;
+
+@Data
+public class ChatbotRespuesta {
+    private String respuesta;
+    private String intencion;
+    private Map<String, Object> entidades;
+    private List<String> opciones;
+}
