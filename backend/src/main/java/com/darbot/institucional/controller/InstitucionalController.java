@@ -21,24 +21,20 @@ public class InstitucionalController {
     private final SedeService sedeService;
     private final AreaContactoService areaContactoService;
 
-    // 1. Obtener la misión, visión, historia, etc.
     @GetMapping("/info")
     public ResponseEntity<InformacionInstitucionalResponse> getInformacion() {
         var info = infoService.obtenerInformacion();
         if (info == null) {
-            // Opción B: Devolver 204 No Content (más RESTful)
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(InformacionInstitucionalResponse.from(info));
     }
 
-    // 2. Listar sedes activas para el público
     @GetMapping("/sedes")
     public ResponseEntity<List<SedeResponse>> listarSedesActivas() {
         return ResponseEntity.ok(sedeService.obtenerActivas().stream().map(SedeResponse::from).toList());
     }
 
-    // 3. Listar todos los contactos de la institución
     @GetMapping("/contactos")
     public ResponseEntity<List<ContactoResponse>> listarContactos() {
         return ResponseEntity.ok(areaContactoService.obtenerContactos().stream().map(ContactoResponse::from).toList());

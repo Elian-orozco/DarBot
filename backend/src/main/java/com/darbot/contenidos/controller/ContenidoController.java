@@ -21,16 +21,22 @@ public class ContenidoController {
 
     @GetMapping("/noticias")
     public ResponseEntity<List<NoticiaResponse>> listarNoticias() {
-        return ResponseEntity.ok(contenidoService.obtenerNoticiasPublicadas().stream().map(NoticiaResponse::from).toList());
+        return ResponseEntity.ok(contenidoService.obtenerNoticiasPublicadas().stream()
+                .map(NoticiaResponse::from)
+                .toList());
     }
 
     @GetMapping("/eventos")
     public ResponseEntity<List<EventoResponse>> listarEventos() {
-        return ResponseEntity.ok(contenidoService.obtenerProximosEventos().stream().map(EventoResponse::from).toList());
+        return ResponseEntity.ok(contenidoService.obtenerProximosEventos().stream()
+                .map(EventoResponse::from)
+                .toList());
     }
 
     @GetMapping("/documentos")
     public ResponseEntity<List<DocumentoResponse>> listarDocumentos() {
-        return ResponseEntity.ok(contenidoService.obtenerDocumentosActivos().stream().map(DocumentoResponse::from).toList());
+        return ResponseEntity.ok(contenidoService.obtenerDocumentosActivos().stream()
+                .map(DocumentoResponse::from)
+                .toList());
     }
 }

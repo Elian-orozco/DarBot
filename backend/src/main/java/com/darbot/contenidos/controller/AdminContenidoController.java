@@ -1,47 +1,120 @@
 package com.darbot.contenidos.controller;
 
 import com.darbot.contenidos.dto.*;
-import com.darbot.contenidos.entity.Documento;
-import com.darbot.contenidos.entity.Evento;
-import com.darbot.contenidos.entity.Noticia;
 import com.darbot.contenidos.service.ContenidoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/contenidos")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminContenidoController {
 
     private final ContenidoService contenidoService;
 
+    // ==================== NOTICIAS ====================
+
+    @GetMapping("/noticias")
+    public ResponseEntity<List<NoticiaResponse>> listarNoticias() {
+        return ResponseEntity.ok(contenidoService.obtenerTodasNoticias().stream()
+                .map(NoticiaResponse::from)
+                .toList());
+    }
+
+    @GetMapping("/noticias/{id}")
+    public ResponseEntity<NoticiaResponse> obtenerNoticia(@PathVariable Long id) {
+        return ResponseEntity.ok(NoticiaResponse.from(contenidoService.obtenerNoticiaPorId(id)));
+    }
+
     @PostMapping("/noticias")
     public ResponseEntity<NoticiaResponse> crearNoticia(@Valid @RequestBody NoticiaRequest request) {
-        Noticia noticia = new Noticia();
-        noticia.setTitulo(request.titulo()); noticia.setResumen(request.resumen()); noticia.setContenido(request.contenido());
-        noticia.setImagenUrl(request.imagenUrl());
-        if (request.estado() != null) noticia.setEstado(request.estado());
-        return ResponseEntity.status(HttpStatus.CREATED).body(NoticiaResponse.from(contenidoService.guardarNoticia(noticia)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(NoticiaResponse.from(contenidoService.crearNoticia(request)));
+    }
+
+    @PutMapping("/noticias/{id}")
+    public ResponseEntity<NoticiaResponse> actualizarNoticia(
+            @PathVariable Long id,
+            @Valid @RequestBody NoticiaRequest request) {
+        return ResponseEntity.ok(NoticiaResponse.from(contenidoService.actualizarNoticia(id, request)));
+    }
+
+    @DeleteMapping("/noticias/{id}")
+    public ResponseEntity<Void> eliminarNoticia(@PathVariable Long id) {
+        contenidoService.eliminarNoticia(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ==================== EVENTOS ====================
+
+    @GetMapping("/eventos")
+    public ResponseEntity<List<EventoResponse>> listarEventos() {
+        return ResponseEntity.ok(contenidoService.obtenerTodosEventos().stream()
+                .map(EventoResponse::from)
+                .toList());
+    }
+
+    @GetMapping("/eventos/{id}")
+    public ResponseEntity<EventoResponse> obtenerEvento(@PathVariable Long id) {
+        return ResponseEntity.ok(EventoResponse.from(contenidoService.obtenerEventoPorId(id)));
     }
 
     @PostMapping("/eventos")
     public ResponseEntity<EventoResponse> crearEvento(@Valid @RequestBody EventoRequest request) {
-        Evento evento = new Evento();
-        evento.setTitulo(request.titulo()); evento.setDescripcion(request.descripcion()); evento.setFecha(request.fecha());
-        evento.setHoraInicio(request.horaInicio()); evento.setHoraFin(request.horaFin()); evento.setLugar(request.lugar());
-        if (request.estado() != null) evento.setEstado(request.estado());
-        return ResponseEntity.status(HttpStatus.CREATED).body(EventoResponse.from(contenidoService.guardarEvento(evento)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(EventoResponse.from(contenidoService.crearEvento(request)));
+    }
+
+    @PutMapping("/eventos/{id}")
+    public ResponseEntity<EventoResponse> actualizarEvento(
+            @PathVariable Long id,
+            @Valid @RequestBody EventoRequest request) {
+        return ResponseEntity.ok(EventoResponse.from(contenidoService.actualizarEvento(id, request)));
+    }
+
+    @DeleteMapping("/eventos/{id}")
+    public ResponseEntity<Void> eliminarEvento(@PathVariable Long id) {
+        contenidoService.eliminarEvento(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ==================== DOCUMENTOS ====================
+
+    @GetMapping("/documentos")
+    public ResponseEntity<List<DocumentoResponse>> listarDocumentos() {
+        return ResponseEntity.ok(contenidoService.obtenerTodosDocumentos().stream()
+                .map(DocumentoResponse::from)
+                .toList());
+    }
+
+    @GetMapping("/documentos/{id}")
+    public ResponseEntity<DocumentoResponse> obtenerDocumento(@PathVariable Long id) {
+        return ResponseEntity.ok(DocumentoResponse.from(contenidoService.obtenerDocumentoPorId(id)));
     }
 
     @PostMapping("/documentos")
     public ResponseEntity<DocumentoResponse> crearDocumento(@Valid @RequestBody DocumentoRequest request) {
-        Documento documento = new Documento();
-        documento.setTitulo(request.titulo()); documento.setDescripcion(request.descripcion()); documento.setNombreArchivo(request.nombreArchivo());
-        documento.setRutaArchivo(request.rutaArchivo()); documento.setTipo(request.tipo());
-        if (request.estado() != null) documento.setEstado(request.estado());
-        return ResponseEntity.status(HttpStatus.CREATED).body(DocumentoResponse.from(contenidoService.guardarDocumento(documento)));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(DocumentoResponse.from(contenidoService.crearDocumento(request)));
+    }
+
+    @PutMapping("/documentos/{id}")
+    public ResponseEntity<DocumentoResponse> actualizarDocumento(
+            @PathVariable Long id,
+            @Valid @RequestBody DocumentoRequest request) {
+        return ResponseEntity.ok(DocumentoResponse.from(contenidoService.actualizarDocumento(id, request)));
+    }
+
+    @DeleteMapping("/documentos/{id}")
+    public ResponseEntity<Void> eliminarDocumento(@PathVariable Long id) {
+        contenidoService.eliminarDocumento(id);
+        return ResponseEntity.noContent().build();
     }
 }
