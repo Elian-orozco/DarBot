@@ -45,9 +45,8 @@ public class ChatbotService {
                 resultado = intentRouterService.procesar(textoNormalizado, conversacion);
             }
 
-            // Guardar respuesta
-            guardarMensaje(conversacion, "BOT", resultado.getMensaje());
-            guardarMensajeConIntencion(conversacion, "BOT", resultado.getMensaje(), resultado.getIntencion());
+            // Guardar respuesta BOT y obtener el mensaje guardado
+            Mensaje mensajeBot = guardarMensajeConIntencion(conversacion, "BOT", resultado.getMensaje(), resultado.getIntencion());
 
             // Actualizar contexto
             contextoService.actualizarContexto(
@@ -58,8 +57,8 @@ public class ChatbotService {
                 resultado.getMensaje()
             );
 
-            // Construir respuesta estructurada
-            return construirRespuestaEstructurada(resultado);
+            // Construir respuesta estructurada con mensajeId
+            return construirRespuestaEstructurada(resultado, mensajeBot.getId());
 
         } catch (BadRequestException ex) {
             throw ex;
@@ -69,11 +68,12 @@ public class ChatbotService {
         }
     }
 
-    private ChatbotRespuesta construirRespuestaEstructurada(ResultadoChatbot resultado) {
+    private ChatbotRespuesta construirRespuestaEstructurada(ResultadoChatbot resultado, Long mensajeId) {
         ChatbotRespuesta respuestaDTO = new ChatbotRespuesta();
         respuestaDTO.setRespuesta(resultado.getMensaje());
         respuestaDTO.setIntencion(resultado.getIntencion());
         respuestaDTO.setEntidades(new HashMap<>());
+        respuestaDTO.setMensajeId(mensajeId); // Agregar mensajeId
         
         // Opciones según intención
         if (resultado.getOpciones() != null && !resultado.getOpciones().isEmpty()) {
@@ -123,12 +123,12 @@ public class ChatbotService {
         mensajeRepository.save(mensaje);
     }
 
-    private void guardarMensajeConIntencion(Conversacion conversacion, String tipo, String contenido, String intencion) {
+    private Mensaje guardarMensajeConIntencion(Conversacion conversacion, String tipo, String contenido, String intencion) {
         Mensaje mensaje = new Mensaje();
         mensaje.setConversacion(conversacion);
         mensaje.setTipo(tipo);
         mensaje.setContenido(contenido);
         mensaje.setIntencionDetectada(intencion);
-        mensajeRepository.save(mensaje);
+        return mensajeRepository.save(mensaje);
     }
 }

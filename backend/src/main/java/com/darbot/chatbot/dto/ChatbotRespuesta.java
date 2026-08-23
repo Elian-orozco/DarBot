@@ -11,4 +11,5 @@ public class ChatbotRespuesta {
     private String intencion;
     private Map<String, Object> entidades;
     private List<String> opciones;
+    private Long mensajeId; // ID del mensaje BOT para feedback
 }
