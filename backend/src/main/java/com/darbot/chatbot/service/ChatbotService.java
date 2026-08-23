@@ -59,22 +59,28 @@ public class ChatbotService {
             Conversacion conversacion = obtenerOCrearConversacion(sessionId);
             guardarMensaje(conversacion, "USER", textoUsuario);
 
-            // Normalización avanzada con LenguajeUtil
             String textoNormalizado = lenguajeUtil.normalizar(textoUsuario);
             log.info("Texto normalizado: '{}'", textoNormalizado);
 
-            // Verificar si es pregunta compuesta
+            // Verificar negación avanzada
+            boolean tieneNegacion = lenguajeUtil.contieneNegacion(textoNormalizado);
+            String tipoNegacion = lenguajeUtil.detectarTipoNegacion(textoNormalizado);
+            String elementoNegado = lenguajeUtil.extraerElementoNegado(textoNormalizado);
+            
+            if (tieneNegacion && elementoNegado != null && !elementoNegado.isEmpty()) {
+                log.info("Negación detectada: tipo={}, elemento='{}'", tipoNegacion, elementoNegado);
+            }
+
+            // Verificar pregunta compuesta
             if (lenguajeUtil.esPreguntaCompuesta(textoNormalizado)) {
                 String respuesta = responderPreguntaCompuesta(textoNormalizado);
                 guardarMensajeConIntencion(conversacion, "BOT", respuesta, "COMPUESTA");
                 return construirRespuestaEstructurada(respuesta, "COMPUESTA", new HashMap<>());
             }
 
-            // Verificar negación
-            boolean tieneNegacion = lenguajeUtil.contieneNegacion(textoNormalizado);
             String textoSinNegacion = tieneNegacion ? lenguajeUtil.eliminarNegaciones(textoNormalizado) : textoNormalizado;
 
-            // 1. Verificar si es pregunta de contexto
+            // Verificar contexto
             boolean esContexto = contextoService.esPreguntaDeContexto(textoNormalizado);
             Optional<ContextoConversacion> contextoOpt = contextoService.obtenerContexto(conversacion);
             
@@ -86,46 +92,36 @@ public class ChatbotService {
                 respuesta = responderConContexto(textoNormalizado, contextoOpt.get(), conversacion);
                 intencionDetectada = "CONTEXTO_" + contextoOpt.get().getUltimaIntencion();
             } else {
-                // 2. Detectar intención
-                Optional<Intencion> intencionOpt = intencionService.detectarIntencion(tieneNegacion ? textoSinNegacion : textoNormalizado);
+                // Detectar intención (sin negaciones)
+                Optional<Intencion> intencionOpt = intencionService.detectarIntencion(
+                    tieneNegacion ? textoSinNegacion : textoNormalizado
+                );
                 
                 if (intencionOpt.isPresent()) {
                     Intencion intencion = intencionOpt.get();
                     intencionDetectada = intencion.getNombre();
                     
-                    // Extraer entidades de la pregunta
                     entidadesExtraidas = extractorDatos.extraerEntidades(textoNormalizado);
                     
-                    respuesta = procesarPorIntencion(intencion, textoNormalizado, entidadesExtraidas);
+                    // Procesar intención con filtro de negación
+                    String elementoNegadoFinal = tieneNegacion ? elementoNegado : null;
+                    respuesta = procesarPorIntencion(intencion, textoNormalizado, entidadesExtraidas, elementoNegadoFinal);
                     
-                    // Si tiene negación, filtrar resultados
-                    if (tieneNegacion) {
-                        if (intencionDetectada.equals("CONSULTAR_EVENTOS")) {
-                            respuesta = "No encontré eventos que coincidan con tu búsqueda (excluyendo eventos).";
-                        } else if (intencionDetectada.equals("CONSULTAR_NOTICIAS")) {
-                            respuesta = "No hay noticias disponibles (excluyendo noticias).";
-                        } else {
-                            respuesta = "❌ " + respuesta;
-                        }
-                    }
                 } else {
-                    // 3. Si no hay intención, buscar FAQ
+                    // Buscar FAQ
                     Optional<Faq> faqOpt = puntuacionService.obtenerMejorFaq(textoNormalizado);
                     if (faqOpt.isPresent()) {
                         respuesta = faqOpt.get().getRespuesta();
                         intencionDetectada = "CONSULTAR_FAQ";
                     } else {
-                        // 4. Sin intención ni FAQ
                         respuesta = manejarPreguntaSinRespuesta(textoUsuario, "DESCONOCIDA");
                         intencionDetectada = "DESCONOCIDA";
                     }
                 }
             }
 
-            // 5. Guardar respuesta
             guardarMensajeConIntencion(conversacion, "BOT", respuesta, intencionDetectada);
 
-            // 6. Actualizar contexto
             String entidadPrincipal = entidadesExtraidas.containsKey("grado") ? 
                 (String) entidadesExtraidas.get("grado") : null;
             contextoService.actualizarContexto(
@@ -136,7 +132,6 @@ public class ChatbotService {
                 respuesta
             );
 
-            // 7. Construir respuesta estructurada
             return construirRespuestaEstructurada(respuesta, intencionDetectada, entidadesExtraidas);
 
         } catch (BadRequestException ex) {
@@ -145,6 +140,28 @@ public class ChatbotService {
             log.error("Error procesando mensaje", ex);
             throw new ChatbotException("No se pudo procesar el mensaje del chatbot", ex);
         }
+    }
+
+    private String procesarPorIntencion(Intencion intencion, String texto, Map<String, Object> entidades, String elementoNegado) {
+        String nombre = intencion.getNombre();
+        log.info("Procesando intención: {}", nombre);
+        
+        String respuesta = switch (nombre) {
+            case "CONSULTAR_EVENTOS" -> responderEventos(texto, entidades, elementoNegado);
+            case "CONSULTAR_NOTICIAS" -> responderNoticias(texto, entidades, elementoNegado);
+            case "CONSULTAR_DOCUMENTOS" -> responderDocumentos(texto, entidades, elementoNegado);
+            case "CONSULTAR_SEDES" -> responderSedes(texto, entidades, elementoNegado);
+            case "CONSULTAR_CONTACTOS" -> responderContactos(texto, entidades, elementoNegado);
+            case "CONSULTAR_HORARIOS" -> responderHorarios(texto, entidades);
+            case "CONSULTAR_SERVICIOS" -> responderServicios(texto, entidades);
+            case "CONSULTAR_INSTITUCION" -> responderInstitucion(texto, entidades);
+            default -> {
+                log.warn("Intención no reconocida: {}", nombre);
+                yield manejarPreguntaSinRespuesta(texto, nombre);
+            }
+        };
+        
+        return generarRespuestaConOpciones(respuesta, nombre);
     }
 
     private String responderPreguntaCompuesta(String texto) {
@@ -156,7 +173,7 @@ public class ChatbotService {
             Optional<Intencion> intencionOpt = intencionService.detectarIntencion(parteNormalizada);
             if (intencionOpt.isPresent()) {
                 Map<String, Object> entidades = extractorDatos.extraerEntidades(parteNormalizada);
-                String respuestaParcial = procesarPorIntencion(intencionOpt.get(), parteNormalizada, entidades);
+                String respuestaParcial = procesarPorIntencion(intencionOpt.get(), parteNormalizada, entidades, null);
                 respuesta.append("• ").append(respuestaParcial).append("\n\n");
             } else {
                 respuesta.append("• ❌ No pude entender: \"").append(parte).append("\"\n\n");
@@ -200,7 +217,6 @@ public class ChatbotService {
         respuestaDTO.setIntencion(intencion);
         respuestaDTO.setEntidades(entidades);
         
-        // Determinar si mostrar opciones adicionales
         List<String> opciones = new ArrayList<>();
         if (intencion.equals("CONSULTAR_EVENTOS")) {
             opciones.addAll(Arrays.asList("Ver todos los eventos", "Ver eventos por mes"));
@@ -227,35 +243,136 @@ public class ChatbotService {
         
         if (intencionOpt.isPresent()) {
             Map<String, Object> entidades = extractorDatos.extraerEntidades(texto);
-            return procesarPorIntencion(intencionOpt.get(), texto, entidades);
+            return procesarPorIntencion(intencionOpt.get(), texto, entidades, null);
         }
 
         return "Lo siento, no pude entender la referencia a la conversación anterior.";
     }
 
-    private String procesarPorIntencion(Intencion intencion, String texto, Map<String, Object> entidades) {
-        String nombre = intencion.getNombre();
-        log.info("Procesando intención: {}", nombre);
+    // ==================== FILTROS DE NEGACIÓN MEJORADOS ====================
+
+    private List<Evento> filtrarEventosPorNegacion(List<Evento> eventos, String elementoNegado) {
+        if (elementoNegado == null || elementoNegado.isEmpty()) {
+            return eventos;
+        }
         
-        String respuesta = switch (nombre) {
-            case "CONSULTAR_EVENTOS" -> responderEventos(texto, entidades);
-            case "CONSULTAR_NOTICIAS" -> responderNoticias(texto, entidades);
-            case "CONSULTAR_DOCUMENTOS" -> responderDocumentos(texto, entidades);
-            case "CONSULTAR_SEDES" -> responderSedes(texto, entidades);
-            case "CONSULTAR_CONTACTOS" -> responderContactos(texto, entidades);
-            case "CONSULTAR_HORARIOS" -> responderHorarios(texto, entidades);
-            case "CONSULTAR_SERVICIOS" -> responderServicios(texto, entidades);
-            case "CONSULTAR_INSTITUCION" -> responderInstitucion(texto, entidades);
-            default -> {
-                log.warn("Intención no reconocida: {}", nombre);
-                yield manejarPreguntaSinRespuesta(texto, nombre);
-            }
-        };
+        String elementoLower = elementoNegado.toLowerCase();
         
-        return generarRespuestaConOpciones(respuesta, nombre);
+        // Si la negación es sobre "eventos" o variantes, excluir TODOS los eventos
+        if (elementoLower.contains("evento") || elementoLower.equals("eventos") || 
+            elementoLower.equals("evento") || elementoLower.contains("actividad")) {
+            log.info("Negación de eventos: excluyendo todos los eventos");
+            return new ArrayList<>();
+        }
+        
+        // Para otros casos, filtrar por título o descripción
+        return eventos.stream()
+            .filter(e -> {
+                String titulo = e.getTitulo() != null ? e.getTitulo().toLowerCase() : "";
+                String descripcion = e.getDescripcion() != null ? e.getDescripcion().toLowerCase() : "";
+                return !titulo.contains(elementoLower) && !descripcion.contains(elementoLower);
+            })
+            .collect(Collectors.toList());
     }
 
-    private String responderEventos(String texto, Map<String, Object> entidades) {
+    private List<Noticia> filtrarNoticiasPorNegacion(List<Noticia> noticias, String elementoNegado) {
+        if (elementoNegado == null || elementoNegado.isEmpty()) {
+            return noticias;
+        }
+        
+        String elementoLower = elementoNegado.toLowerCase();
+        
+        // Si la negación es sobre "noticias", excluir TODAS las noticias
+        if (elementoLower.contains("noticia") || elementoLower.equals("noticias") || 
+            elementoLower.contains("novedad")) {
+            log.info("Negación de noticias: excluyendo todas las noticias");
+            return new ArrayList<>();
+        }
+        
+        return noticias.stream()
+            .filter(n -> {
+                String titulo = n.getTitulo() != null ? n.getTitulo().toLowerCase() : "";
+                String resumen = n.getResumen() != null ? n.getResumen().toLowerCase() : "";
+                return !titulo.contains(elementoLower) && !resumen.contains(elementoLower);
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<Sede> filtrarSedesPorNegacion(List<Sede> sedes, String elementoNegado) {
+        if (elementoNegado == null || elementoNegado.isEmpty()) {
+            return sedes;
+        }
+        
+        String elementoLower = elementoNegado.toLowerCase();
+        
+        // Si la negación es sobre "sedes", excluir TODAS las sedes
+        if (elementoLower.contains("sede") || elementoLower.equals("sedes") || 
+            elementoLower.contains("ubicacion") || elementoLower.contains("ubicación")) {
+            log.info("Negación de sedes: excluyendo todas las sedes");
+            return new ArrayList<>();
+        }
+        
+        return sedes.stream()
+            .filter(s -> {
+                String nombre = s.getNombre() != null ? s.getNombre().toLowerCase() : "";
+                String direccion = s.getDireccion() != null ? s.getDireccion().toLowerCase() : "";
+                return !nombre.contains(elementoLower) && !direccion.contains(elementoLower);
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<Documento> filtrarDocumentosPorNegacion(List<Documento> documentos, String elementoNegado) {
+        if (elementoNegado == null || elementoNegado.isEmpty()) {
+            return documentos;
+        }
+        
+        String elementoLower = elementoNegado.toLowerCase();
+        
+        // Si la negación es sobre "documentos", excluir TODOS los documentos
+        if (elementoLower.contains("documento") || elementoLower.equals("documentos") || 
+            elementoLower.contains("manual") || elementoLower.contains("archivo")) {
+            log.info("Negación de documentos: excluyendo todos los documentos");
+            return new ArrayList<>();
+        }
+        
+        return documentos.stream()
+            .filter(d -> {
+                String titulo = d.getTitulo() != null ? d.getTitulo().toLowerCase() : "";
+                String descripcion = d.getDescripcion() != null ? d.getDescripcion().toLowerCase() : "";
+                return !titulo.contains(elementoLower) && !descripcion.contains(elementoLower);
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<Contacto> filtrarContactosPorNegacion(List<Contacto> contactos, String elementoNegado) {
+        if (elementoNegado == null || elementoNegado.isEmpty()) {
+            return contactos;
+        }
+        
+        String elementoLower = elementoNegado.toLowerCase();
+        
+        // Si la negación es sobre "contactos", excluir TODOS los contactos
+        if (elementoLower.contains("contacto") || elementoLower.equals("contactos") || 
+            elementoLower.contains("telefono") || elementoLower.contains("teléfono") || 
+            elementoLower.contains("correo") || elementoLower.contains("email")) {
+            log.info("Negación de contactos: excluyendo todos los contactos");
+            return new ArrayList<>();
+        }
+        
+        return contactos.stream()
+            .filter(c -> {
+                String valor = c.getValor() != null ? c.getValor().toLowerCase() : "";
+                String descripcion = c.getDescripcion() != null ? c.getDescripcion().toLowerCase() : "";
+                return !valor.contains(elementoLower) && !descripcion.contains(elementoLower);
+            })
+            .collect(Collectors.toList());
+    }
+
+    // ==================== MÉTODOS RESPONDEDORES ====================
+
+    private String responderEventos(String texto, Map<String, Object> entidades, String elementoNegado) {
+        log.info("responderEventos - elementoNegado: '{}'", elementoNegado);
+
         LocalDate fechaInicio = LocalDate.now();
         List<Evento> eventos = eventoRepository.findByFechaGreaterThanEqualOrderByFechaAsc(fechaInicio);
         
@@ -263,7 +380,15 @@ public class ChatbotService {
             return "Actualmente no hay eventos programados próximos en la institución.";
         }
 
-        // Filtrar por tipo de evento si se detectó
+        // Aplicar filtro de negación primero
+        if (elementoNegado != null && !elementoNegado.isEmpty()) {
+            eventos = filtrarEventosPorNegacion(eventos, elementoNegado);
+            if (eventos.isEmpty()) {
+                return "No encontré eventos (excluyendo: " + elementoNegado + ").";
+            }
+        }
+
+        // Aplicar otros filtros después de la negación
         if (entidades.containsKey("tipo_evento")) {
             String tipo = (String) entidades.get("tipo_evento");
             eventos = eventos.stream()
@@ -272,7 +397,6 @@ public class ChatbotService {
                 .collect(Collectors.toList());
         }
 
-        // Filtrar por grado si se detectó
         if (entidades.containsKey("grado")) {
             String grado = (String) entidades.get("grado");
             eventos = eventos.stream()
@@ -315,11 +439,21 @@ public class ChatbotService {
         return respuesta.toString();
     }
 
-    private String responderNoticias(String texto, Map<String, Object> entidades) {
+    private String responderNoticias(String texto, Map<String, Object> entidades, String elementoNegado) {
+        log.info("responderNoticias - elementoNegado: '{}'", elementoNegado);
+        
         List<Noticia> noticias = noticiaRepository.findByEstadoOrderByFechaPublicacionDesc("PUBLICADA");
         
         if (noticias == null || noticias.isEmpty()) {
             return "No hay novedades publicadas en este momento.";
+        }
+
+        // Aplicar filtro de negación primero
+        if (elementoNegado != null && !elementoNegado.isEmpty()) {
+            noticias = filtrarNoticiasPorNegacion(noticias, elementoNegado);
+            if (noticias.isEmpty()) {
+                return "No hay noticias disponibles (excluyendo: " + elementoNegado + ").";
+            }
         }
 
         noticias = noticias.stream().limit(MAX_RESULTADOS).collect(Collectors.toList());
@@ -340,11 +474,20 @@ public class ChatbotService {
         return respuesta.toString();
     }
 
-    private String responderDocumentos(String texto, Map<String, Object> entidades) {
+    private String responderDocumentos(String texto, Map<String, Object> entidades, String elementoNegado) {
+        log.info("responderDocumentos - elementoNegado: '{}'", elementoNegado);
+        
         List<Documento> documentos = documentoRepository.findByEstado("ACTIVO");
         
         if (documentos == null || documentos.isEmpty()) {
             return "No hay documentos activos disponibles en este momento.";
+        }
+
+        if (elementoNegado != null && !elementoNegado.isEmpty()) {
+            documentos = filtrarDocumentosPorNegacion(documentos, elementoNegado);
+            if (documentos.isEmpty()) {
+                return "No hay documentos disponibles (excluyendo: " + elementoNegado + ").";
+            }
         }
 
         if (entidades.containsKey("tipo_documento")) {
@@ -379,11 +522,20 @@ public class ChatbotService {
         return respuesta.toString();
     }
 
-    private String responderSedes(String texto, Map<String, Object> entidades) {
+    private String responderSedes(String texto, Map<String, Object> entidades, String elementoNegado) {
+        log.info("responderSedes - elementoNegado: '{}'", elementoNegado);
+        
         List<Sede> sedes = sedeRepository.findByActivaTrue();
         
         if (sedes == null || sedes.isEmpty()) {
             return "No hay sedes registradas en el sistema.";
+        }
+
+        if (elementoNegado != null && !elementoNegado.isEmpty()) {
+            sedes = filtrarSedesPorNegacion(sedes, elementoNegado);
+            if (sedes.isEmpty()) {
+                return "No hay sedes disponibles (excluyendo: " + elementoNegado + ").";
+            }
         }
 
         StringBuilder respuesta = new StringBuilder("🏫 **Sedes de la institución:**\n\n");
@@ -405,11 +557,20 @@ public class ChatbotService {
         return respuesta.toString();
     }
 
-    private String responderContactos(String texto, Map<String, Object> entidades) {
+    private String responderContactos(String texto, Map<String, Object> entidades, String elementoNegado) {
+        log.info("responderContactos - elementoNegado: '{}'", elementoNegado);
+        
         List<Contacto> contactos = contactoRepository.findAll();
         
         if (contactos == null || contactos.isEmpty()) {
             return "No hay contactos registrados en el sistema.";
+        }
+
+        if (elementoNegado != null && !elementoNegado.isEmpty()) {
+            contactos = filtrarContactosPorNegacion(contactos, elementoNegado);
+            if (contactos.isEmpty()) {
+                return "No hay contactos disponibles (excluyendo: " + elementoNegado + ").";
+            }
         }
 
         if (entidades.containsKey("tipo_contacto")) {
