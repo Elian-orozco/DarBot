@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +76,6 @@ public class FeedbackService {
         List<Object[]> ultimos7Dias = feedbackRepository.countByFechaBetween(hace7Dias, ahora);
         
         Map<String, Map<String, Long>> diario = new HashMap<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         
         for (Object[] row : ultimos7Dias) {
             String fecha = row[0] != null ? row[0].toString() : "";

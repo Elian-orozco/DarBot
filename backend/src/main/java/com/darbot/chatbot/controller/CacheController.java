@@ -1,6 +1,7 @@
 package com.darbot.chatbot.controller;
 
 import com.darbot.chatbot.service.CacheService;
+import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
@@ -21,16 +22,14 @@ public class CacheController {
     public ResponseEntity<Map<String, Object>> obtenerEstadisticas() {
         Map<String, Object> stats = new HashMap<>();
         
-        // Estadísticas de cada cache
         for (String cacheName : new String[]{"chatbot_respuestas", "chatbot_intenciones", "chatbot_faq"}) {
             var cache = cacheManager.getCache(cacheName);
             if (cache != null) {
-                // Caffeine no expone directamente las estadísticas, pero podemos obtener el native cache
-                if (cache.getNativeCache() instanceof com.github.benmanes.caffeine.cache.Cache) {
-                    var caffeineCache = (com.github.benmanes.caffeine.cache.Cache) cache.getNativeCache();
+                var nativeCache = cache.getNativeCache();
+                if (nativeCache instanceof Cache<?, ?>) {
+                    var caffeineCache = (Cache<?, ?>) nativeCache;
                     stats.put(cacheName, Map.of(
-                        "size", caffeineCache.estimatedSize(),
-                        "stats", caffeineCache.stats()
+                        "size", caffeineCache.estimatedSize()
                     ));
                 }
             }

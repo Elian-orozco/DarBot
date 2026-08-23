@@ -6,8 +6,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,11 +21,6 @@ public class ExtractorDatos {
         "(\\d{1,2}/\\d{1,2}/\\d{4})|" +
         "(\\d{4}-\\d{1,2}-\\d{1,2})|" +
         "(hoy|mañana|pasado mañana|ayer)"
-    );
-
-    private static final Pattern PATRON_RANGO_FECHAS = Pattern.compile(
-        "(del\\s+(\\d{1,2})\\s+al\\s+(\\d{1,2})\\s+de\\s+([a-z]+))|" +
-        "(desde\\s+el\\s+(\\d{1,2})\\s+hasta\\s+el\\s+(\\d{1,2})\\s+de\\s+([a-z]+))"
     );
 
     private static final Pattern PATRON_GRADO = Pattern.compile(
