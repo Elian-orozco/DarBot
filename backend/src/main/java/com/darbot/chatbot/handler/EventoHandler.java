@@ -18,33 +18,57 @@ import java.util.stream.Collectors;
 public class EventoHandler implements IntencionHandler {
 
     private final EventoRepository eventoRepository;
-    private static final int MAX_RESULTADOS = 5;
+    private static final int MAX_RESULTADOS = 10;
 
     @Override
     public ResultadoChatbot procesar(String texto, Map<String, Object> entidades, String elementoNegado) {
         log.info("EventoHandler - elementoNegado: '{}'", elementoNegado);
 
         LocalDate fechaInicio = LocalDate.now();
-        List<Evento> eventos = eventoRepository.findByFechaGreaterThanEqualOrderByFechaAsc(fechaInicio);
-        
+        LocalDate fechaFin = null;
+
+        // Verificar si hay rango de fechas
+        if (entidades.containsKey("fecha_desde") && entidades.containsKey("fecha_hasta")) {
+            fechaInicio = (LocalDate) entidades.get("fecha_desde");
+            fechaFin = (LocalDate) entidades.get("fecha_hasta");
+            log.info("Rango de fechas específico: {} - {}", fechaInicio, fechaFin);
+        } else if (entidades.containsKey("rango_nombre")) {
+            // Usar rango por nombre (hoy, esta semana, etc.)
+            String rangoNombre = (String) entidades.get("rango_nombre");
+            if (entidades.containsKey("fecha_desde")) {
+                fechaInicio = (LocalDate) entidades.get("fecha_desde");
+            }
+            if (entidades.containsKey("fecha_hasta")) {
+                fechaFin = (LocalDate) entidades.get("fecha_hasta");
+            }
+            log.info("Rango por nombre: {} -> {} - {}", rangoNombre, fechaInicio, fechaFin);
+        }
+
+        // Obtener eventos
+        List<Evento> eventos;
+        if (fechaFin != null) {
+            eventos = eventoRepository.findByFechaBetweenOrderByFechaAsc(fechaInicio, fechaFin);
+        } else {
+            eventos = eventoRepository.findByFechaGreaterThanEqualOrderByFechaAsc(fechaInicio);
+        }
+
         if (eventos == null || eventos.isEmpty()) {
-            return new ResultadoChatbot("CONSULTAR_EVENTOS", 
-                "Actualmente no hay eventos programados próximos en la institución.");
+            String mensaje = fechaFin != null ? 
+                "No hay eventos programados entre el " + fechaInicio + " y el " + fechaFin + "." :
+                "Actualmente no hay eventos programados próximos en la institución.";
+            return new ResultadoChatbot("CONSULTAR_EVENTOS", mensaje);
         }
 
         // Aplicar filtro de negación
         if (elementoNegado != null && !elementoNegado.isEmpty()) {
             String elementoLower = elementoNegado.toLowerCase();
             
-            // Si la negación es sobre "eventos", excluir TODOS
             if (elementoLower.contains("evento") || elementoLower.equals("eventos") || 
                 elementoLower.equals("evento") || elementoLower.contains("actividad")) {
-                log.info("Negación de eventos: excluyendo todos los eventos");
                 return new ResultadoChatbot("CONSULTAR_EVENTOS", 
                     "No encontré eventos (excluyendo: " + elementoNegado + ").");
             }
             
-            // Filtrar por título o descripción
             eventos = eventos.stream()
                 .filter(e -> {
                     String titulo = e.getTitulo() != null ? e.getTitulo().toLowerCase() : "";
@@ -84,8 +108,14 @@ public class EventoHandler implements IntencionHandler {
 
         eventos = eventos.stream().limit(MAX_RESULTADOS).collect(Collectors.toList());
 
-        ResultadoChatbot resultado = new ResultadoChatbot("CONSULTAR_EVENTOS", 
-            eventos.size() == 1 ? "Encontré un evento próximo:" : "Encontré " + eventos.size() + " eventos próximos:");
+        String mensaje;
+        if (fechaFin != null) {
+            mensaje = "Encontré " + eventos.size() + " eventos entre el " + fechaInicio + " y el " + fechaFin + ":";
+        } else {
+            mensaje = "Encontré " + eventos.size() + " eventos próximos:";
+        }
+
+        ResultadoChatbot resultado = new ResultadoChatbot("CONSULTAR_EVENTOS", mensaje);
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 

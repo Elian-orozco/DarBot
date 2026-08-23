@@ -7,12 +7,10 @@ import com.darbot.chatbot.util.LenguajeUtil;
 import com.darbot.chatbot.entity.Conversacion;
 import com.darbot.chatbot.entity.Faq;
 import com.darbot.chatbot.entity.Intencion;
-import com.darbot.chatbot.repository.FaqRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,7 +24,6 @@ public class IntentRouterService {
     private final PuntuacionService puntuacionService;
     private final LenguajeUtil lenguajeUtil;
     private final ExtractorDatos extractorDatos;
-    private final FaqRepository faqRepository;
     private final ContextoService contextoService;
     
     private final List<IntencionHandler> handlers;
