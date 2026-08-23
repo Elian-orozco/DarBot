@@ -11,6 +11,7 @@ import com.darbot.common.exception.BadRequestException;
 import com.darbot.common.exception.ChatbotException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -25,11 +26,25 @@ public class ChatbotService {
     private final IntentRouterService intentRouterService;
     private final LenguajeUtil lenguajeUtil;
     private final ContextoService contextoService;
+    private final CacheService cacheService;
+
+    // Cache de respuestas para preguntas frecuentes
+    @Cacheable(value = "chatbot_respuestas", key = "#sessionId + '_' + #textoUsuario", unless = "#resultado == null")
+    public ChatbotRespuesta procesarMensajeConCache(String sessionId, String textoUsuario) {
+        return procesarMensaje(sessionId, textoUsuario);
+    }
 
     public ChatbotRespuesta procesarMensaje(String sessionId, String textoUsuario) {
         validarEntrada(sessionId, textoUsuario);
 
         try {
+            // Verificar si la respuesta está en cache
+            ChatbotRespuesta cached = cacheService.obtenerRespuestaCache(sessionId, textoUsuario);
+            if (cached != null) {
+                log.info("Respuesta obtenida de cache: sessionId={}", sessionId);
+                return cached;
+            }
+
             Conversacion conversacion = obtenerOCrearConversacion(sessionId);
             guardarMensaje(conversacion, "USER", textoUsuario);
 
@@ -45,7 +60,7 @@ public class ChatbotService {
                 resultado = intentRouterService.procesar(textoNormalizado, conversacion);
             }
 
-            // Guardar respuesta BOT y obtener el mensaje guardado
+            // Guardar respuesta BOT
             Mensaje mensajeBot = guardarMensajeConIntencion(conversacion, "BOT", resultado.getMensaje(), resultado.getIntencion());
 
             // Actualizar contexto
@@ -57,8 +72,13 @@ public class ChatbotService {
                 resultado.getMensaje()
             );
 
-            // Construir respuesta estructurada con mensajeId
-            return construirRespuestaEstructurada(resultado, mensajeBot.getId());
+            // Construir respuesta
+            ChatbotRespuesta respuesta = construirRespuestaEstructurada(resultado, mensajeBot.getId());
+
+            // Guardar en cache para futuras consultas
+            cacheService.guardarRespuestaCache(sessionId, textoUsuario, respuesta);
+
+            return respuesta;
 
         } catch (BadRequestException ex) {
             throw ex;
