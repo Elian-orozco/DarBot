@@ -18,6 +18,9 @@ public class InformacionInstitucional {
     private String nombre;
 
     @Column(columnDefinition = "TEXT")
+    private String descripcion;
+
+    @Column(columnDefinition = "TEXT")
     private String historia;
 
     @Column(columnDefinition = "TEXT")
@@ -32,11 +35,20 @@ public class InformacionInstitucional {
     @Column(columnDefinition = "TEXT")
     private String filosofia;
 
-    @Column(columnDefinition = "TEXT")
-    private String descripcion;
-
     @Column(name = "logo_url", length = 255)
     private String logoUrl;
+
+    @Column(name = "nombre_institucion", length = 200)
+    private String nombreInstitucion;
+
+    @Column(name = "telefono_general", length = 50)
+    private String telefonoGeneral;
+
+    @Column(name = "correo_general", length = 100)
+    private String correoGeneral;
+
+    @Column(name = "sitio_web", length = 200)
+    private String sitioWeb;
 
     @Column(name = "fecha_creacion", updatable = false)
     private LocalDateTime fechaCreacion;
