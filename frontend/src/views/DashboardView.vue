@@ -67,6 +67,12 @@
             >
               📊 Analítica
             </router-link>
+            <router-link to="/admin/intenciones" class="bg-indigo-50 text-indigo-600 p-4 rounded-lg text-center hover:bg-indigo-100 transition-colors">
+              🧠 Intenciones
+            </router-link>
+            <router-link to="/admin/sinonimos" class="bg-pink-50 text-pink-600 p-4 rounded-lg text-center hover:bg-pink-100 transition-colors">
+              🔤 Sinónimos
+            </router-link>
           </div>
         </div>
       </div>
