@@ -12,7 +12,7 @@
     <!-- Ventana del chat -->
     <div
       v-else
-      class="bg-white rounded-2xl shadow-2xl w-96 h-[600px] flex flex-col overflow-hidden border border-gray-200"
+      class="bg-white rounded-2xl shadow-2xl w-[calc(100vw-2rem)] max-w-96 h-[min(600px,calc(100vh-2rem))] min-h-96 flex flex-col overflow-hidden border border-gray-200"
     >
       <!-- Header -->
       <div class="bg-blue-600 text-white p-4 flex justify-between items-center">

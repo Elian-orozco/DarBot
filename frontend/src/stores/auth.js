@@ -37,6 +37,7 @@ export const useAuthStore = defineStore('auth', () => {
     authService.logout()
     token.value = ''
     user.value = null
+    window.location.assign('/')
   }
 
   return {

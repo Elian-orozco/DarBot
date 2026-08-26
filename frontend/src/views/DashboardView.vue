@@ -1,10 +1,11 @@
 <template>
-  <div class="min-h-screen bg-gray-100">
+  <div class="min-h-screen bg-[#f7f3ef]">
     <!-- Header -->
     <header class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-blue-600">DarBot - Dashboard</h1>
+        <div class="flex items-center gap-4"><router-link to="/" class="font-bold text-red-700">DTP</router-link><h1 class="text-xl font-bold text-red-700">Panel institucional</h1></div>
         <div class="flex items-center gap-4">
+          <router-link to="/" class="text-red-700 text-sm font-medium">Ver sitio</router-link>
           <span class="text-gray-600">{{ authStore.user?.username }}</span>
           <button 
             @click="authStore.logout" 
@@ -45,7 +46,7 @@
           <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <router-link 
               to="/chat" 
-              class="bg-blue-50 text-blue-600 p-4 rounded-lg text-center hover:bg-blue-100 transition-colors"
+              class="bg-red-50 text-red-700 p-4 rounded-lg text-center hover:bg-red-100 transition-colors"
             >
               💬 Chat
             </router-link>
@@ -57,7 +58,7 @@
             </router-link>
             <router-link 
               to="/admin/contenido" 
-              class="bg-purple-50 text-purple-600 p-4 rounded-lg text-center hover:bg-purple-100 transition-colors"
+              class="bg-red-50 text-red-700 p-4 rounded-lg text-center hover:bg-red-100 transition-colors"
             >
               📰 Contenido
             </router-link>
@@ -72,6 +73,12 @@
             </router-link>
             <router-link to="/admin/sinonimos" class="bg-pink-50 text-pink-600 p-4 rounded-lg text-center hover:bg-pink-100 transition-colors">
               🔤 Sinónimos
+            </router-link>
+            <router-link to="/admin/preguntas" class="bg-amber-50 text-amber-700 p-4 rounded-lg text-center hover:bg-amber-100 transition-colors">
+              ❓ Preguntas sin respuesta
+            </router-link>
+            <router-link to="/admin/institucional" class="bg-red-50 text-red-700 p-4 rounded-lg text-center hover:bg-red-100 transition-colors">
+              🏫 Información institucional
             </router-link>
           </div>
         </div>

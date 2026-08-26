@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-100">
-    <header class="bg-white shadow"><div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center"><div class="flex items-center gap-4"><router-link to="/dashboard" class="text-gray-600 hover:text-gray-800">← Volver</router-link><h1 class="text-xl font-bold text-blue-600">Gestión de sinónimos</h1></div><button @click="authStore.logout" class="text-red-500 text-sm">Cerrar sesión</button></div></header>
+    <header class="bg-white shadow"><div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center"><div class="flex items-center gap-4"><router-link to="/dashboard" class="text-gray-600 hover:text-gray-800">← Volver</router-link><h1 class="text-xl font-bold text-red-700">Gestión de sinónimos</h1></div><div class="flex items-center gap-4"><router-link to="/" class="text-red-700 text-sm">Ver sitio</router-link><button @click="authStore.logout" class="text-red-500 text-sm">Cerrar sesión</button></div></div></header>
     <main class="max-w-7xl mx-auto px-4 py-8">
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="font-semibold mb-4">Agregar sinónimo</h2>
@@ -8,7 +8,7 @@
           <input v-model="formulario.palabraBase" class="input" placeholder="Palabra base" />
           <input v-model="formulario.sinonimo" class="input" placeholder="Sinónimo" />
           <select v-model="formulario.intencionId" class="input"><option :value="null">Sin intención</option><option v-for="i in intenciones" :key="i.id" :value="i.id">{{ i.nombre }}</option></select>
-          <button @click="crear" class="button bg-blue-600">Agregar</button>
+          <button @click="crear" class="button bg-red-700">Agregar</button>
         </div>
       </div>
       <p v-if="error" class="mb-4 rounded bg-red-100 p-3 text-red-700">{{ error }}</p>

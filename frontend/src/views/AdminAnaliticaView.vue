@@ -7,9 +7,10 @@
           <router-link to="/dashboard" class="text-gray-600 hover:text-gray-800">
             ← Volver
           </router-link>
-          <h1 class="text-xl font-bold text-blue-600">📊 Analítica</h1>
+          <h1 class="text-xl font-bold text-red-700">📊 Analítica</h1>
         </div>
         <div class="flex items-center gap-4">
+          <router-link to="/" class="text-red-700 text-sm">Ver sitio</router-link>
           <span class="text-gray-600 text-sm">{{ authStore.user?.username }}</span>
           <button @click="authStore.logout" class="text-red-500 hover:text-red-700 text-sm">
             Cerrar sesión

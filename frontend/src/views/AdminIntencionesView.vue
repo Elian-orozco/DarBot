@@ -2,8 +2,8 @@
   <div class="min-h-screen bg-gray-100">
     <header class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-4"><router-link to="/dashboard" class="text-gray-600 hover:text-gray-800">← Volver</router-link><h1 class="text-xl font-bold text-blue-600">Gestión de intenciones</h1></div>
-        <button @click="authStore.logout" class="text-red-500 text-sm">Cerrar sesión</button>
+        <div class="flex items-center gap-4"><router-link to="/dashboard" class="text-gray-600 hover:text-gray-800">← Volver</router-link><h1 class="text-xl font-bold text-red-700">Gestión de intenciones</h1></div>
+        <div class="flex items-center gap-4"><router-link to="/" class="text-red-700 text-sm">Ver sitio</router-link><button @click="authStore.logout" class="text-red-500 text-sm">Cerrar sesión</button></div>
       </div>
     </header>
     <main class="max-w-7xl mx-auto px-4 py-8">
@@ -25,7 +25,7 @@
         <label class="block text-sm font-medium mt-4">Respuesta por defecto<textarea v-model="intencion.respuestaPorDefecto" rows="2" class="input"></textarea></label>
         <div class="flex flex-wrap gap-4 items-center mt-4">
           <label class="text-sm"><input v-model="intencion.activa" type="checkbox" class="mr-2" />Activa</label>
-          <button @click="guardarIntencion(intencion)" class="button bg-blue-600">Guardar cambios</button>
+          <button @click="guardarIntencion(intencion)" class="button bg-red-700">Guardar cambios</button>
         </div>
         <div class="border-t mt-5 pt-4">
           <h2 class="font-semibold mb-3">Palabras clave</h2>
